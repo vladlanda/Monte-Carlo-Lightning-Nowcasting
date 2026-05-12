@@ -1,0 +1,111 @@
+\subsection{XGBoost Statistical Baseline}
+\label{sec:xgboost_baseline}
+
+A statistical baseline was constructed using the XGBoost gradient-boosted
+tree classifier \citep{chen2016xgboost}, which has been applied to lightning
+nowcasting in prior work \citep{mostajabi2019nowcasting,holzmann2018error}.
+XGBoost was preferred over a convolutional neural network (CNN) because the
+available dataset - two seasons of Israeli Lightning Detection Network (ILDN)
+observations - is insufficient for reliable deep learning training; CNN-based
+nowcasting architectures typically benefit from multi-year dense training
+datasets for robust generalisation \citep{leinonen2022seamless}, and
+training on two seasons alone would risk severe overfitting.
+XGBoost generalises reliably from compact tabular datasets and has been
+established as a standard ML approach for lightning nowcasting
+\citep{mostajabi2019nowcasting}, providing a useful reference point for
+comparison, though differences in study domain, dataset size, and evaluation
+protocol limit strict commensurability.
+
+ILDN stroke observations were binned onto a $0.16^{\circ}$ spatial grid
+(${\approx}17$\,km) over the study domain
+($29$-$35^{\circ}$\,N,\;$31$-$37^{\circ}$\,E) at a temporal resolution
+of $\Delta t = 5$\,min, consistent with operational lightning warning systems
+\citep{leinonen2022seamless,holzmann2018error} which is expected to capture the dominant convective cell
+timescales over the study region.
+Both training and evaluation datasets were restricted to November-April,
+the months during which convective thunderstorm activity occurs over Israel,
+driven by Cyprus Low and Red Sea Trough synoptic systems
+\citep{altaratz2003lightning,benami2015lightning}.
+The model was trained on November-April 2022-2023 and evaluated on
+November-April 2023-2024.
+
+At each forecast origin $t$, features were computed per grid cell spanning
+six groups: (i) six multi-scale history sums
+$H_w = \sum_{k=0}^{w/\Delta t-1} c(\mathbf{x},t{-}k)$ for
+$w \in \{10,20,40,120,240,360\}$\,min \citep{foresti2019using};
+(ii) spatial neighbourhood sums over $3{\times}3$ and $5{\times}5$ windows
+at both $t$ and $t{-}1$ \citep{holzmann2018error};
+(iii) an exponential decay accumulation
+$D = \sum_k c(\mathbf{x},t{-}k)\,e^{-0.1k}$ and a persistence ratio
+$c / (H_{120}/24 + \varepsilon)$;
+(iv) diurnal and seasonal sine-cosine encodings, capturing the morning peak
+under Red Sea Trough conditions and the nocturnal maximum of Cyprus Low
+frontal systems \citep{benami2015lightning,altaratz2003lightning};
+and (v) five static spatial features (normalised latitude, longitude,
+land/sea mask, coastline distance, and terrain proxy) encoding
+geographically-varying climatology \citep{altaratz2003lightning}.
+
+The binary target for model $\tau$ is defined as
+$y_\tau = \mathbf{1}[\sum_{k=\tau/\Delta t - 11}^{\tau/\Delta t}
+c(\mathbf{x},t{+}k)>0]$, i.e.\ whether any strike occurs in the specific
+one-hour window ending at $t{+}\tau$.
+This produces six non-overlapping prediction targets, one per lead time
+$\tau \in \{60,120,180,240,300,360\}$\,min, each covering a distinct
+future hour.
+Six independent XGBoost models were trained, sharing a common feature
+matrix $\mathbf{X}$.
+Negative training samples were downsampled to 15\% and early stopping was
+optimised directly on AUC-PR using a temporally ordered 15\% validation
+split to prevent future leakage.
+Post-hoc isotonic regression calibration \citep{zadrozny2002transforming}
+was applied to correct poorly calibrated scores \citep{caruana2005obtaining}.
+Test origins were separated by exactly $\tau$ to ensure independent
+verification windows \citep{murphy1993good}.
+Figure \ref{fig:xgb_case_study} shows a representative case study from
+31 January 2024 illustrating the model's predicted probability field
+alongside the observed ground truth at each lead time.
+
+The area under the precision-recall curve (AUC-PR) is used as the primary
+metric because AUC-ROC is misleading under severe class imbalance
+\citep{davis2006relationship}, supplemented by AUC-ROC and Brier score
+\citep{murphy1973hedging} with precision, recall, and F1 at the F1-optimal
+threshold.
+Precision-Recall curves for each lead time are shown in
+Figure \ref{fig:xgb_pr_auc}, and the full suite of skill scores as a
+function of lead time is presented in Figure \ref{fig:xgb_scalar_metrics}.
+
+% -
+% XGBoost Baseline Figures
+% -
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{ildn_xgboost_case_study.jpg}
+    \caption{XGBoost baseline case study — forecast origin 2024-01-31 09:00 UTC.
+    \textbf{Top row:} raw ILDN strike observations in each one-hour
+    verification window (strike count shown above each panel).
+    \textbf{Middle row:} binary ground truth map on a $0.16^{\circ}$ grid,
+    with the number of active cells noted.
+    \textbf{Bottom row:} predicted probability field $P(\text{lightning})$
+    at lead times 1-6 hours.}
+    \label{fig:xgb_case_study}
+\end{figure*}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{ildn_xgboost_pr_auc.jpg}
+    \caption{Precision-Recall curves for the XGBoost baseline at each lead
+    time (1-6 hours), evaluated on ILDN data from November-April 2023-2024.
+    Diamond markers indicate the F1-optimal operating point.
+    AUC-PR values are reported in the legend.}
+    \label{fig:xgb_pr_auc}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{ildn_xgboost_scalar_metrics.jpg}
+    \caption{XGBoost baseline skill scores as a function of lead time
+    (1-6 hours): AUC-ROC, AUC-PR, F1 (at F1-optimal threshold), Brier score,
+    Precision, and Recall, evaluated on ILDN data from November-April 2023-2024.}
+    \label{fig:xgb_scalar_metrics}
+\end{figure}

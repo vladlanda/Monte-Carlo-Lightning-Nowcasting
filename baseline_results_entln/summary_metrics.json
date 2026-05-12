@@ -1,0 +1,56 @@
+{
+  "60min": {
+    "auc_roc": 0.9378,
+    "auc_pr": 0.4587,
+    "brier": 0.0354,
+    "best_threshold": 0.6935,
+    "precision": 0.4593,
+    "recall": 0.4982,
+    "f1": 0.4779
+  },
+  "120min": {
+    "auc_roc": 0.8763,
+    "auc_pr": 0.1732,
+    "brier": 0.0476,
+    "best_threshold": 0.5763,
+    "precision": 0.2079,
+    "recall": 0.3534,
+    "f1": 0.2618
+  },
+  "180min": {
+    "auc_roc": 0.8501,
+    "auc_pr": 0.1206,
+    "brier": 0.0545,
+    "best_threshold": 0.5775,
+    "precision": 0.1505,
+    "recall": 0.3027,
+    "f1": 0.201
+  },
+  "240min": {
+    "auc_roc": 0.8412,
+    "auc_pr": 0.0959,
+    "brier": 0.0569,
+    "best_threshold": 0.521,
+    "precision": 0.1164,
+    "recall": 0.3705,
+    "f1": 0.1771
+  },
+  "300min": {
+    "auc_roc": 0.8278,
+    "auc_pr": 0.0931,
+    "brier": 0.0595,
+    "best_threshold": 0.497,
+    "precision": 0.1142,
+    "recall": 0.3884,
+    "f1": 0.1765
+  },
+  "360min": {
+    "auc_roc": 0.8409,
+    "auc_pr": 0.0941,
+    "brier": 0.0541,
+    "best_threshold": 0.5652,
+    "precision": 0.1175,
+    "recall": 0.3066,
+    "f1": 0.1699
+  }
+}
