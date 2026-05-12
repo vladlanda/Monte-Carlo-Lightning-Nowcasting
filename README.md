@@ -1,13 +1,102 @@
-Lightning Nowcasting Baseline (XGBoost)This repository contains the official baseline implementation for lightning nowcasting using Extreme Gradient Boosting (XGBoost). This codebase transforms raw lightning strike point observations into a gridded spatiotemporal forecasting problem, serving as a rigorous Machine Learning benchmark for evaluating Deep Learning models in meteorological applications.⚡ OverviewThe pipeline implements a "point-to-grid" forecasting approach. It processes lightning strike data from the Eastern Mediterranean (Israel ROI) and generates probabilistic forecasts for multiple lead times (1 to 6 hours). Unlike simple persistence or extrapolation methods, this baseline incorporates multi-scale temporal history, spatial neighborhood context, and geographic static features.Key Technical Features:Isotonic Calibration: Uses CalibratedClassifierCV to ensure predicted probabilities are reliable and map accurately to empirical frequencies.Gap-boundary Filtering: Automatically detects and excludes timesteps crossing significant temporal gaps (>3h) to prevent training on discontinuous meteorological events.Negative Downsampling: Addresses the extreme class imbalance (sparsity) inherent in lightning data to improve model convergence.F1-Optimal Thresholding: Sweeps thresholds to find the optimal operating point for imbalanced classification.🛠 Methodology1. Spatial & Temporal GriddingROI: Hardcoded for the Israel/Eastern Mediterranean region (Lat: 29.0N–35.0N, Lon: 31.0E–37.0E).Resolution: Configurable spatial grid (default 0.1° or 0.16°) with a fixed 5-minute internal time resolution.Seasonality: Optimized for the Oct–Apr wet season.2. Feature EngineeringThe model generates a high-dimensional feature vector for each grid cell:Temporal History: Accumulation windows (10m, 20m, 40m, 120m, 240m, 360m).Spatial Neighborhoods: $R=1$ and $R=2$ neighborhood sums to capture convective growth/decay.Dynamic Signals: Persistence ratios (Current/Background) and exponential decay weights.Static Geophysics: Normalized coordinates, Land/Sea mask, distance from the Mediterranean coast, and a terrain elevation proxy.Cyclical Encoding: Sine/Cosine transforms for diurnal (hour) and seasonal (month) cycles.🚀 Getting StartedPrerequisitesPython 3.8+xgboost, scikit-learn, pandas, numpy, pyarrow, openpyxlRunning the PipelineThe full evaluation suite (training 6 models for 1h–6h leads) is automated via a bash script:# Ensure scripts are executable
-chmod +x run_baseline_xgboost.sh
+Lightning Nowcasting: XGBoost Baseline
 
-# Run the full pipeline
-./run_baseline_xgboost.sh
-To run the Python engine manually with specific parameters:python xgboostalgo.py \
-    --train "path/to/train.xlsx" \
-    --test "path/to/test.xlsx" \
+This repository contains the baseline classical machine learning pipeline for short-term lightning forecasting (nowcasting). It uses XGBoost trained on gridded historical lightning strike data to predict the probability of future lightning occurrences at various lead times (1 to 6 hours).
+
+Note on Methodology: This is a tree-based ensemble approach, serving as a classical Machine Learning baseline to be compared against more complex Deep Learning (e.g., CNN, ConvLSTM) spatial-temporal models.
+
+🧠 Methodology & Feature Engineering
+
+The pipeline converts raw, sparse lightning strike data into dense spatio-temporal cubes (default 5-minute bins). Because XGBoost cannot natively process spatial or sequential data, the script engineers explicit tabular features for each grid cell:
+
+Temporal History: Strike counts aggregated over configurable rolling windows (e.g., 10, 20, 40, 120 minutes).
+
+Spatial Context: Neighbourhood sums (radius 1 and 2) of recent strikes to detect incoming/expanding storms.
+
+Decay Mechanics: An exponentially decaying sum of past strikes to capture storm dissipation.
+
+Cyclic Time: Sine/Cosine encodings of the hour of the day and month of the year to capture diurnal and seasonal climatology.
+
+Static Spatial Proxies: Normalized latitude, longitude, distance to the coast, a binary land/sea mask, and a linear-regression proxy for topography.
+
+Calibration: The model applies Isotonic Calibration post-training using a temporal holdout set to ensure predicted probabilities match empirical observation frequencies.
+
+📦 Requirements
+
+pip install numpy pandas xgboost scikit-learn openpyxl pyarrow
+
+
+📂 Data Format
+
+The input data must be provided as Excel files (.xlsx). Both training and testing files must contain the following columns:
+
+UTC: A parseable datetime string/object.
+
+lat: Latitude of the strike (float).
+
+lon: Longitude of the strike (float).
+
+Data Constraints enforced by the pipeline:
+
+Strict Temporal Separation: The script will halt if the maximum date in the training set overlaps with the minimum date in the testing set.
+
+Wet Season Only: Data is automatically filtered to keep only the active lightning season (October – April) to prevent zero-inflation from summer months.
+
+ROI Filtering: Data is strictly filtered to a hardcoded bounding box: w: 31.0, e: 37.0, s: 29.0, n: 35.0 (Eastern Mediterranean).
+
+🚀 Usage
+
+Option 1: Automated Bash Script (Recommended)
+
+The repository includes an orchestration script that handles file paths, hyperparameter configuration, and sequential execution of training and plotting.
+
+# Run with default parameters
+bash run_baseline_xgboost.sh
+
+# Override parameters (e.g., lower the negative downsampling ratio)
+bash run_baseline_xgboost.sh --neg_ratio 0.05
+
+
+Option 2: Manual Python Execution
+
+You can run the Python script directly for finer control over specific lead times or grid sizes.
+
+python xgboostalgo.py \
+    --train "ENTLN 2022-2023 season.xlsx" \
+    --test "ENTLN 2023-2024 season.xlsx" \
     --grid 0.16 \
+    --windows 10 20 40 120 240 360 \
     --leadtimes 60 120 180 240 300 360 \
+    --depth 12 \
+    --trees 700 \
+    --lr 0.01 \
     --neg_ratio 0.15 \
-    --output ./results/
-📊 Evaluation & OutputsThe script outputs a comprehensive results directory per lead time:predictions.parquet: Time-indexed grid results containing y_true and y_prob.metrics.json: Threshold-independent (AUC-ROC, AUC-PR, Brier) and threshold-optimal (F1, Precision, Recall) metrics.feature_importance.json: Ranked list of features based on Gini importance.model.json: The serialized XGBoost estimator for inference.📂 Repository StructureFileDescriptionxgboostalgo.pyCore engine for gridding, feature engineering, and training.run_baseline_xgboost.shOrchestration script for multi-lead evaluation and hyperparameter management.plot_baseline.py(Required) Generates summary plots and performance curves.plot_case_study.py(Required) Visualizes specific convective events (e.g., Jan 31, 2024).📝 CitationIf you use this baseline in your research, please cite the corresponding paper:Citation placeholder for "Title of the Paper"Disclaimer: This is a Machine Learning baseline using Gradient Boosted Trees (XGBoost), provided to establish a performance ceiling for traditional tabular methods before comparing against Deep Learning architectures.
+    --output baseline_results_entln
+
+
+📊 Outputs
+
+Results are saved in the directory specified by --output. The pipeline generates a separate directory for each targeted lead time (e.g., 60min/, 120min/).
+
+Inside each lead time directory, you will find:
+
+predictions.parquet: A dataframe containing the test set time, iy, ix, y_true, and y_prob.
+
+metrics.json: Threshold-independent (AUC-ROC, AUC-PR, Brier) and threshold-optimal (Precision, Recall, F1) metrics.
+
+model.json: The raw serialized XGBoost model.
+
+feature_importance.json: Gain-based feature importance extracted from the trees.
+
+A global summary_metrics.json is generated at the root of the output directory comparing performance across all lead times.
+
+⚠️ Critical Limitations & Assumptions
+
+When evaluating this baseline against other models, note the following built-in assumptions:
+
+Topographic Oversimplification: The "elevation" feature is a linear proxy derived mathematically from coordinates (-400 × (lat - 31.5) + 600 × (lon - 34.8)). It is not a true Digital Elevation Model (DEM). This assumes storm behavior scales linearly with coordinate gradients, which ignores complex local orography.
+
+Geographic Hardcoding: The script contains hardcoded coordinates for Israel/Lebanon coastlines and bounding boxes. It will require code refactoring to apply to other global regions.
+
+Loss of Spatial Topology: Flattening grids into tabular features (even with neighborhood_sum) is inherently lossy. The model cannot learn complex spatial advection patterns (e.g., storm cell rotation, frontal boundaries) the way a Deep Learning vision model would.
+
+Temporal Independence Assumption: XGBoost treats every timestep and grid cell as an independent IID observation. While the script implements a gap_threshold_minutes to prevent feature leakage across calendar gaps, it cannot learn continuous temporal dependencies (like an LSTM).
