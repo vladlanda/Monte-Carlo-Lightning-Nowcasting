@@ -16,7 +16,7 @@ The two figures below illustrate the full nowcasting pipeline.
 
 **Part 2 — Nowcast: particle propagation, density estimation, and evaluation**
 
-![Flowchart Part 2](figures/flowchart_part_2_copy.jpg)
+![Flowchart Part 2](figures/flowchart_part_2.jpg)
 
 ---
 
