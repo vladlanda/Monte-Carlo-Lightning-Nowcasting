@@ -1,3 +1,129 @@
+# Real-Time Probabilistic Nowcasting of Lightning Density via a Sequential Monte Carlo Framework
+
+This repository contains the implementation of a **Sequential Monte Carlo (Particle Filter)** framework for probabilistic lightning density nowcasting, as described in the paper *"Real-Time Probabilistic Nowcasting of Lightning Density via a Sequential Monte Carlo Framework"* by Vlad Landa et al., submitted to *Weather and Forecasting*.
+
+The pipeline ingests raw lightning strike observations from regional detection networks (ILDN/ENTLN), clusters active cells with DBSCAN, estimates storm motion vectors, and propagates particle-based density fields forward in time to produce calibrated probability maps at lead times of 1–6 hours.
+
+---
+
+## 🔬 Algorithm Overview
+
+The two figures below illustrate the full nowcasting pipeline.
+
+**Part 1 — Setup: clustering, motion estimation, and particle initialisation**
+
+![Flowchart Part 1](figures/flowchart_part_1.jpg)
+
+**Part 2 — Nowcast: particle propagation, density estimation, and evaluation**
+
+![Flowchart Part 2](figures/flowchart_part_2_copy.jpg)
+
+---
+
+## 📦 Requirements
+
+```bash
+pip install numpy pandas scikit-learn matplotlib cartopy PyQt5 superqt opencv-python tqdm openpyxl
+```
+
+---
+
+## 🖥️ Interactive Application — `applicationV2.py`
+
+`applicationV2.py` is a **PyQt5 desktop GUI** for interactive real-time nowcasting. It loads a lightning detection file, runs the particle filter tracker, and displays live density estimates and predictions on a geographic map.
+
+### Launch
+
+```bash
+python applicationV2.py
+```
+
+The application opens a file dialog on startup. Select any `.xlsx` or `.csv` lightning file with columns `UTC`, `lat`, `lon`.
+
+### GUI Controls
+
+| Control | Description |
+|---------|-------------|
+| **File** menu | Load a new lightning detection file |
+| **History window** | Duration of past observations used to initialise the tracker (minutes) |
+| **dt** | Time step between the previous and current observation windows (minutes) |
+| **N particles** | Number of particles per cluster (default: 200) |
+| **Min samples** | DBSCAN minimum samples parameter for cluster formation |
+| **Max dist** | DBSCAN maximum distance (degrees) for neighbourhood search |
+| **Contour resolution** | Grid resolution for the KDE density map (X × Y cells) |
+| **Step slider** | Number of prediction steps to propagate forward |
+| **Threshold slider** | Probability threshold for the density contour display |
+| **Checkboxes** | Toggle particles, KDE contour, scatter plots, velocity arrows |
+| **Simulate** button | Run one prediction step forward |
+| **Reset** button | Re-initialise the tracker from the current frame |
+
+### Settings persistence
+
+All GUI parameters are automatically saved to `settings.pk` in the working directory and reloaded on the next launch.
+
+### Key configuration (inside `Settings` class)
+
+```python
+nswe             = {'w': 31.0, 'e': 37.0, 's': 29.0, 'n': 35.0}  # ROI bounding box
+history_window   = timedelta(minutes=60)   # look-back window
+dt               = timedelta(minutes=30)   # time step
+min_samples      = 3                       # DBSCAN min samples
+max_dist         = 0.2                     # DBSCAN epsilon (degrees)
+contour_resolution_x = 100                # KDE grid width
+contour_resolution_y = 100                # KDE grid height
+```
+
+---
+
+## 📊 Batch Evaluation — `evaluationV2.py`
+
+`evaluationV2.py` runs a **systematic parameter sweep** over the full particle filter configuration space, computing skill scores (AUC-ROC, AUC-PR, FSS, CSI) across all combinations of history windows, time steps, DBSCAN parameters, and grid resolutions.
+
+### Usage
+
+```bash
+python evaluationV2.py -f "ILDN 2023-2024 season.xlsx"
+```
+
+Optionally provide a separate ground truth file:
+
+```bash
+python evaluationV2.py -f "ILDN 2023-2024 season.xlsx" -gt "GT_reference.xlsx"
+```
+
+### Arguments
+
+| Argument | Short | Required | Description |
+|----------|-------|----------|-------------|
+| `--file` | `-f` | ✅ Yes | Path to the lightning detection `.xlsx` file to evaluate |
+| `--gound_truth` | `-gt` | No | Path to a separate ground truth `.xlsx` file (if different from input) |
+
+### Parameter sweep (configured inside the script)
+
+```python
+history_windows  = [15, 30, 45, 60, 75, 90]   # minutes
+dts              = [15, 30, 45, 60]            # minutes
+min_samples      = [3]
+max_dists        = [0.2, 0.3]                  # degrees
+grid_sizes_km    = [10, 5, 2]                  # km
+steps            = [1, 2, 3, 4, 5, 6]         # lead time steps (hours)
+```
+
+This produces **144 parameter combinations × 172,800 total simulations**. Results are cached to `results/<filename>_results.pk` so the sweep does not need to be re-run if the file already exists.
+
+### Outputs
+
+Results are saved under the `results/` directory:
+
+| File | Description |
+|------|-------------|
+| `<filename>_results.pk` | Pickled dictionary of all simulation outputs indexed by parameter tuple |
+| Skill score tables | Printed to stdout; can be redirected to a file |
+
+---
+
+---
+
 # Lightning Nowcasting: XGBoost Baseline
 
 This repository contains the baseline classical machine learning pipeline for short-term lightning forecasting (nowcasting). It uses **XGBoost** trained on gridded historical lightning strike data to predict the probability of future lightning occurrences at various lead times (1 to 6 hours).
